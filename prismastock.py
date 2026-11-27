@@ -51,6 +51,31 @@ def clasificar_estado(inventario, stock_minimo, dias_minimo):
     return "Normal"
 
 
+def analizar_periodo(iniciales, stocks_minimos, stocks_optimos,
+                     ventas, reposiciones, dias):
+    """Calcula todos los resultados del periodo, un diccionario por producto."""
+    vendidas = sumar_filas(ventas)
+    recibidas = sumar_filas(reposiciones)
+    finales = calcular_existencias_finales(iniciales, vendidas, recibidas)
+
+    resultados = []
+    for i in range(len(iniciales)):
+        consumo = consumo_promedio(vendidas[i], dias)
+        d_minimo = dias_hasta_minimo(finales[i], consumo, stocks_minimos[i])
+        resultados.append({
+            "inicial": iniciales[i],
+            "vendidas": vendidas[i],
+            "recibidas": recibidas[i],
+            "final": finales[i],
+            "consumo": consumo,
+            "dias_minimo": d_minimo,
+            "dias_agotamiento": dias_hasta_agotarse(finales[i], consumo),
+            "estado": clasificar_estado(finales[i], stocks_minimos[i], d_minimo),
+            "comprar": max(stocks_optimos[i] - finales[i], 0),
+        })
+    return resultados
+
+
 # ---------------------------------------------------------------------
 # PARTE 2: ENTRADA POR CONSOLA
 # ---------------------------------------------------------------------

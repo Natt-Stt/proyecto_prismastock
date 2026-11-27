@@ -1,6 +1,7 @@
 import unittest
 
 from prismastock import (
+    analizar_periodo,
     calcular_existencias_finales,
     clasificar_estado,
     consumo_promedio,
@@ -31,7 +32,7 @@ class PrismaStockTests(unittest.TestCase):
 
         self.assertAlmostEqual(average, 1.6)
         self.assertAlmostEqual(days, 1.25)
-        self.assertEqual(inventario_en_el_tiempo(27, 1.6, 1), 25.4)
+        self.assertAlmostEqual(inventario_en_el_tiempo(27, 1.6, 1), 25.4)
         self.assertEqual(
             clasificar_estado(27, 25, days),
             "ALERTA PREVENTIVA",
@@ -47,6 +48,28 @@ class PrismaStockTests(unittest.TestCase):
 
     def test_no_sales_has_no_projection_or_alert(self):
         self.assertIsNone(dias_hasta_minimo(30, 0, 20))
+
+    def test_analyze_period(self):
+        _, _, iniciales, minimos, optimos, ventas, reposiciones, dias = datos_demo()
+
+        resultados = analizar_periodo(
+            iniciales, minimos, optimos, ventas, reposiciones, dias
+        )
+
+        self.assertEqual(len(resultados), 3)
+        self.assertEqual(resultados[0]["inicial"], 50)
+        self.assertEqual(resultados[0]["vendidas"], 12)
+        self.assertEqual(resultados[0]["recibidas"], 10)
+        self.assertEqual(resultados[0]["final"], 48)
+        self.assertAlmostEqual(resultados[0]["consumo"], 2.4)
+        self.assertAlmostEqual(resultados[0]["dias_minimo"], 28 / 2.4)
+        self.assertEqual(resultados[0]["dias_agotamiento"], 20.0)
+        self.assertEqual(resultados[0]["estado"], "Normal")
+        self.assertEqual(resultados[0]["comprar"], 12)
+        self.assertEqual(resultados[1]["estado"], "ALERTA PREVENTIVA")
+        self.assertEqual(resultados[1]["comprar"], 13)
+        self.assertEqual(resultados[2]["estado"], "ALERTA CRITICA")
+        self.assertEqual(resultados[2]["comprar"], 15)
 
 
 if __name__ == "__main__":
