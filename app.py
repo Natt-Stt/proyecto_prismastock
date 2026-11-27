@@ -2,14 +2,9 @@ import pandas as pd
 import streamlit as st
 
 from prismastock import (
-    clasificar_estado,
-    consumo_promedio,
+    analizar_periodo,
     datos_demo,
-    dias_hasta_agotarse,
-    dias_hasta_minimo,
-    calcular_existencias_finales,
     inventario_en_el_tiempo,
-    sumar_filas,
 )
 
 CODE = "Codigo"
@@ -20,7 +15,7 @@ DEMO_MODE = "Demostracion"
 
 st.set_page_config(
     page_title="PrismaStock | Inventario",
-    page_icon="",
+    page_icon="📦",
     layout="wide",
 )
 
@@ -109,50 +104,43 @@ def compute_results(products, sales, restocks, days, horizon):
     sales_matrix = sales.drop(columns="Producto").astype(int).values.tolist()
     restock_matrix = restocks.drop(columns="Producto").astype(int).values.tolist()
 
-    sold = sumar_filas(sales_matrix)
-    received = sumar_filas(restock_matrix)
-    final = calcular_existencias_finales(initial, sold, received)
+    results = analizar_periodo(initial, minimum, optimal,
+                               sales_matrix, restock_matrix, days)
     rows = []
-
-    for index, name in enumerate(names):
-        average = consumo_promedio(sold[index], days)
-        days_to_minimum = dias_hasta_minimo(final[index], average, minimum[index])
-        status = clasificar_estado(final[index], minimum[index], days_to_minimum)
+    for index, r in enumerate(results):
         rows.append(
             {
                 CODE: codes[index],
-                "Producto": name,
-                "Inicial": initial[index],
-                "Ventas": sold[index],
-                "Reposiciones": received[index],
-                "Stock actual": final[index],
+                "Producto": names[index],
+                "Inicial": r["inicial"],
+                "Ventas": r["vendidas"],
+                "Reposiciones": r["recibidas"],
+                "Stock actual": r["final"],
                 "Minimo": minimum[index],
-                "Consumo/dia": average,
-                "Dias al minimo": days_to_minimum,
-                "Estado": status,
-                "Comprar": max(optimal[index] - final[index], 0),
-                "Dias al agotamiento": dias_hasta_agotarse(final[index], average),
+                "Consumo/dia": r["consumo"],
+                "Dias al minimo": r["dias_minimo"],
+                "Estado": r["estado"],
+                "Comprar": r["comprar"],
+                "Dias al agotamiento": r["dias_agotamiento"],
             }
         )
 
     projection = pd.DataFrame(
         {
-            name: [
-                max(
-                    inventario_en_el_tiempo(
-                        final[index],
-                        rows[index]["Consumo/dia"],
-                        day,
-                    ),
-                    0,
-                )
+            names[i]: [
+                max(inventario_en_el_tiempo(r["final"], r["consumo"], day), 0)
                 for day in range(horizon + 1)
             ]
-            for index, name in enumerate(names)
+            for i, r in enumerate(results)
         },
         index=[f"Dia {day}" for day in range(horizon + 1)],
     )
-    return pd.DataFrame(rows), projection, sum(sold), sum(final)
+    return (
+        pd.DataFrame(rows),
+        projection,
+        sum(r["vendidas"] for r in results),
+        sum(r["final"] for r in results),
+    )
 
 
 st.markdown(
@@ -252,6 +240,9 @@ else:
         st.session_state[restocks_key] = movement_frame(
             product_names, day_count, initial_restocks
         )
+
+    st.session_state[sales_key]["Producto"] = product_names
+    st.session_state[restocks_key]["Producto"] = product_names
 
     with tab_movements:
         st.subheader("Movimientos del periodo")
