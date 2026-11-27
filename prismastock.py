@@ -177,77 +177,49 @@ def mostrar_resultados(
         )
 
 
-def procesar_periodo(
-    codigos,
-    nombres,
-    iniciales,
-    stocks_minimos,
-    stocks_optimos,
-    ventas,
-    reposiciones,
-    dias,
-):
+def procesar_periodo(codigos, nombres, iniciales, stocks_minimos,
+                     stocks_optimos, ventas, reposiciones, dias):
     mostrar_matriz("Matriz de VENTAS", ventas, nombres, dias)
     mostrar_matriz("Matriz de REPOSICIONES", reposiciones, nombres, dias)
 
-    ventas_acumuladas = sumar_filas(ventas)
-    reposiciones_acumuladas = sumar_filas(reposiciones)
-    existencias = calcular_existencias_finales(
-        iniciales, ventas_acumuladas, reposiciones_acumuladas
-    )
+    res = analizar_periodo(iniciales, stocks_minimos, stocks_optimos,
+                           ventas, reposiciones, dias)
+    vendidas = [r["vendidas"] for r in res]
+    recibidas = [r["recibidas"] for r in res]
+    existencias = [r["final"] for r in res]
+    estados = [r["estado"] for r in res]
 
-    consumos, dias_minimos, estados = [], [], []
-    for indice in range(len(codigos)):
-        consumo = consumo_promedio(ventas_acumuladas[indice], dias)
-        dias_minimo = dias_hasta_minimo(
-            existencias[indice], consumo, stocks_minimos[indice]
-        )
-        consumos.append(consumo)
-        dias_minimos.append(dias_minimo)
-        estados.append(
-            clasificar_estado(
-                existencias[indice], stocks_minimos[indice], dias_minimo
-            )
-        )
-
-    mostrar_resultados(
-        codigos,
-        nombres,
-        iniciales,
-        ventas_acumuladas,
-        reposiciones_acumuladas,
-        existencias,
-        estados,
-    )
-    print(f"\nTotal vendido: {sum(ventas_acumuladas)} unidades")
+    mostrar_resultados(codigos, nombres, iniciales, vendidas,
+                       recibidas, existencias, estados)
+    print(f"\nTotal vendido: {sum(vendidas)} unidades")
     print(f"Existencias finales: {sum(existencias)} unidades")
 
-    mayor = max(ventas_acumuladas) if ventas_acumuladas else 0
+    mayor = max(vendidas) if vendidas else 0
     if mayor > 0:
-        indice = ventas_acumuladas.index(mayor)
+        indice = vendidas.index(mayor)
         print(f"Producto mas vendido: {nombres[indice]} ({mayor} unidades)")
 
     for indice, nombre in enumerate(nombres):
-        if estados[indice] == "Normal":
+        r = res[indice]
+        if r["estado"] == "Normal":
             continue
-        compra = max(stocks_optimos[indice] - existencias[indice], 0)
-        print(f"\n[{estados[indice]} DE REPOSICION]")
+        print(f"\n[{r['estado']} DE REPOSICION]")
         print(f"Producto: {codigos[indice]} - {nombre}")
         print(
-            f"Stock actual: {existencias[indice]} "
+            f"Stock actual: {r['final']} "
             f"(nivel minimo: {stocks_minimos[indice]}), "
-            f"comprar {compra} unidades."
+            f"comprar {r['comprar']} unidades."
         )
-        if dias_minimos[indice] is not None:
-            print(f"Dias hasta el minimo: {dias_minimos[indice]:.2f}")
-        agotamiento = dias_hasta_agotarse(existencias[indice], consumos[indice])
-        if agotamiento is not None:
-            print(f"Dias hasta agotamiento: {agotamiento:.2f}")
+        if r["dias_minimo"] is not None:
+            print(f"Dias hasta el minimo: {r['dias_minimo']:.2f}")
+        if r["dias_agotamiento"] is not None:
+            print(f"Dias hasta agotamiento: {r['dias_agotamiento']:.2f}")
 
     print("\n=== PROYECCION I(t) = Mf - c*t (7 dias) ===")
     for indice, nombre in enumerate(nombres):
         valores = [
-            max(inventario_en_el_tiempo(existencias[indice], consumos[indice], dia), 0)
+            max(inventario_en_el_tiempo(existencias[indice],
+                                        res[indice]["consumo"], dia), 0)
             for dia in range(8)
         ]
         print(f"{nombre:<16}: {valores}")
